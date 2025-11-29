@@ -1,5 +1,22 @@
 # 📊 Financial Sentiment NLP Pipeline
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Status-Research%20Validated-brightgreen?style=flat-square" />
+  <img src="https://img.shields.io/badge/Model-CatBoost%20Classifier-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/Accuracy-53.2%25-success?style=flat-square" />
+  <img src="https://img.shields.io/badge/Backtest%20Return-%2B8.3%25-blueviolet?style=flat-square" />
+  <img src="https://img.shields.io/badge/Walk--Forward-No%20Leakage-important?style=flat-square" />
+  <img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" />
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10+-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/Framework-Streamlit-red?style=flat-square" />
+  <img src="https://img.shields.io/badge/NLP-FinBERT%20%7C%20VADER%20%7C%20TextBlob-orange?style=flat-square" />
+  <img src="https://img.shields.io/badge/Explainability-SHAP-lightgrey?style=flat-square" />
+  <img src="https://img.shields.io/badge/Tests-Passed-green?style=flat-square" />
+</p>
+
 A research-grade framework for predicting daily stock price movements using multi-model NLP sentiment analysis, technical indicators, and machine learning with **leak-free temporal validation**.
 
 **Author**: Rajveer Singh Pall  
