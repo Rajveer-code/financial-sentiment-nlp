@@ -1,0 +1,34 @@
+# ========== CORE ==========
+streamlit==1.38.0
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.4.2
+python-dotenv==1.0.1
+
+# ========== NLP ==========
+transformers==4.36.2       
+torch==2.3.0
+sentencepiece==0.2.0
+spacy==3.7.4
+textblob==0.17.1
+vaderSentiment==3.3.2
+
+# ========== FINANCE ==========
+yfinance==0.2.40
+
+# ========== PLOTTING ==========
+plotly==5.22.0
+
+# ========== ML MODELS ==========
+catboost==1.2.3
+
+# ========== PDF / REPORTING ==========
+reportlab==4.2.0
+
+# ========== SPEED & UTILS ==========
+tqdm==4.66.2
+requests==2.31.0
+joblib==1.4.0
+
+# ========== OPTIONAL (required for spaCy NLP pipelines) ==========
+spacy-transformers==1.3.5  
