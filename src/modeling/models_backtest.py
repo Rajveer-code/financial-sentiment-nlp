@@ -150,20 +150,34 @@ class PredictionEngine:
         self.model = self.loader.load_model()
 
         # ==========================================================
-        # FIX FOR NUMERIC FEATURES ("0","1","2",...) IN CATBOOST MODEL
+        # STORE FEATURE NAMES SEPARATELY (don't modify CatBoost model)
         # ==========================================================
+        # CatBoost models from pickle are immutable, so we store our expected
+        # feature names in a separate instance variable for alignment
+        self.expected_feature_names = None
+        
         if hasattr(self.model, "feature_names_"):
-            # Check if all names are numeric → model was trained incorrectly
-            if all(name.isdigit() for name in self.model.feature_names_):
-                if len(self.model.feature_names_) == len(MODEL_FEATURES):
-                    log_warning("Mapping numeric model feature names to MODEL_FEATURES", "MODEL")
-                    self.model.feature_names_ = MODEL_FEATURES
-                else:
-                    log_error(
-                        f"Feature count mismatch! Model expects {len(self.model.feature_names_)}, "
-                        f"Pipeline provides {len(MODEL_FEATURES)}",
+            model_feature_names = list(self.model.feature_names_)
+            
+            # Check if model has numeric feature names ("0","1","2",...)
+            if all(str(f).isdigit() for f in model_feature_names):
+                if len(model_feature_names) == len(MODEL_FEATURES):
+                    log_warning(
+                        f"Model has numeric feature names. Will map to MODEL_FEATURES ({len(MODEL_FEATURES)} features)",
                         "MODEL"
                     )
+                    self.expected_feature_names = MODEL_FEATURES
+                else:
+                    raise ValueError(
+                        f"Feature count mismatch! Model expects {len(model_feature_names)}, "
+                        f"Pipeline provides {len(MODEL_FEATURES)}"
+                    )
+            else:
+                # Model has real feature names
+                self.expected_feature_names = model_feature_names
+        else:
+            # Fallback: use MODEL_FEATURES
+            self.expected_feature_names = MODEL_FEATURES
 
         self.scaler = self.loader.load_scaler()
         self.confidence_threshold = confidence_threshold
@@ -176,7 +190,21 @@ class PredictionEngine:
             "PREDICT",
         )
 
-    # ---------------------------------------------------------------------
+    # --------------------------------------------------------------------- 
+    
+    def get_engine_status(self) -> Dict[str, Any]:
+        """Return engine status information for debugging."""
+        return {
+            "model_loaded": self.model is not None,
+            "model_has_feature_names": hasattr(self.model, "feature_names_") if self.model else False,
+            "model_feature_count": len(self.model.feature_names_) if hasattr(self.model, "feature_names_") else 0,
+            "expected_features": len(self.expected_feature_names) if self.expected_feature_names else 0,
+            "scaler_available": self.scaler is not None,
+            "confidence_threshold": self.confidence_threshold,
+            "schema_version": self.feature_schema_version,
+        }
+
+    # --------------------------------------------------------------------- 
 
     def _get_probabilities(self, X: pd.DataFrame) -> Tuple[float, float]:
         """Return (prob_down, prob_up) robustly."""
@@ -218,48 +246,44 @@ class PredictionEngine:
         )
 
         X_pred = X[MODEL_FEATURES].copy()
-        # DEBUG: Print what we have
-        print(f"DEBUG: X columns: {list(X.columns)}")
-        print(f"DEBUG: X_pred columns: {list(X_pred.columns)}")
-        print(f"DEBUG: MODEL_FEATURES: {MODEL_FEATURES[:5]}...")
-        print(f"DEBUG: model expects: {list(self.model.feature_names_)[:5]}...")  # First 5
 
-        # Column alignment
-        
         # ==========================================================
-        # FIX: Align X_pred columns with model feature names
+        # COLUMN ALIGNMENT: Match model's expected feature names
         # ==========================================================
         if hasattr(self.model, "feature_names_"):
-
             model_features = list(self.model.feature_names_)
-
-            # CASE 1 — Model expects numeric features: ["0","1","2",...]
+            
+            # CASE 1: Model expects numeric features ["0","1","2",...]
             if all(str(f).isdigit() for f in model_features):
-                log_warning("Model expects numeric features → renaming X_pred columns", "PREDICT")
-
-                numeric_names = [str(i) for i in range(len(X_pred.columns))]
-
-                if len(numeric_names) != len(model_features):
+                log_info("Mapping columns to numeric indices for model", "PREDICT")
+                
+                if len(X_pred.columns) != len(model_features):
                     raise ValueError(
-                        f"Feature mismatch: model expects {len(model_features)} features, "
-                        f"X_pred has {len(X_pred.columns)}"
+                        f"Feature count mismatch: model expects {len(model_features)} features, "
+                        f"pipeline provided {len(X_pred.columns)}"
                     )
-
-                # Rename columns to numeric names
+                
+                # Rename to numeric indices
+                numeric_names = [str(i) for i in range(len(X_pred.columns))]
                 X_pred.columns = numeric_names
-
-            # CASE 2 — Model uses real feature names → reorder
+            
+            # CASE 2: Model expects named features
             else:
                 if list(X_pred.columns) != model_features:
-                    log_warning("Reordering X_pred columns to match model", "PREDICT")
+                    log_info("Reordering columns to match model feature order", "PREDICT")
+                    # Reorder X_pred to match model feature order
+                    X_pred = X_pred[model_features]
 
-
-
+        # ==========================================================
+        # APPLY SCALING IF AVAILABLE
+        # ==========================================================
         if self.scaler is not None:
             X_scaled = self.scaler.transform(X_pred)
             X_pred = pd.DataFrame(X_scaled, columns=X_pred.columns)
 
-        # Predict
+        # ==========================================================
+        # MAKE PREDICTION
+        # ==========================================================
         prediction = int(self.model.predict(X_pred)[0])
         prob_down, prob_up = self._get_probabilities(X_pred)
         confidence = max(prob_up, prob_down)

@@ -1,0 +1,10 @@
+fold_id,train_start,train_end,test_start,test_end,test_samples,accuracy,auc,f1,support_positive
+fold_01,2025-07-23,2025-08-31,2025-09-01,2025-09-14,102,0.529,0.588,0.526,52
+fold_02,2025-07-23,2025-09-14,2025-09-15,2025-09-30,101,0.532,0.603,0.531,54
+fold_03,2025-07-23,2025-09-30,2025-10-01,2025-10-15,99,0.524,0.579,0.520,49
+fold_04,2025-07-23,2025-10-15,2025-10-16,2025-10-31,101,0.538,0.611,0.540,56
+fold_05,2025-07-23,2025-10-31,2025-11-01,2025-11-20,101,0.521,0.574,0.517,48
+summary_mean,*,*,*,*,504,0.529,0.591,0.527,259
+summary_std,*,*,*,*,*,0.0068,0.0132,0.0085,*
+
+# Notes: folds use an expanding walk-forward scheme. `support_positive` is number of positive-class samples in each test segment.

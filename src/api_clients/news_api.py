@@ -316,7 +316,7 @@ def get_default_providers() -> List[BaseNewsProvider]:
         newsapi_key = keys.get("newsapi")
         av_key = keys.get("alphavantage")
         
-        logger.info("✅ Loaded API keys via api_key_manager")
+        logger.info("[OK] Loaded API keys via api_key_manager")
     else:
         # Fallback to environment variables
         import os
@@ -324,29 +324,29 @@ def get_default_providers() -> List[BaseNewsProvider]:
         newsapi_key = os.getenv("NEWSAPI_KEY")
         av_key = os.getenv("ALPHAVANTAGE_API_KEY")
         
-        logger.warning("⚠️  Using environment variables (api_key_manager not available)")
+        logger.warning("[WARN] Using environment variables (api_key_manager not available)")
 
-    # Initialize providers with available keys
-    if finnhub_key:
-        providers.append(FinnhubNewsProvider(finnhub_key, session=session))
-        logger.info("✅ Finnhub provider initialized")
-    else:
-        logger.warning("⚠️  Finnhub API key not found - skipping Finnhub")
-
+    # Initialize providers with available keys (NewsAPI first for real articles)
     if newsapi_key:
         providers.append(NewsAPIProvider(newsapi_key, session=session))
-        logger.info("✅ NewsAPI provider initialized")
+        logger.info("[OK] NewsAPI provider initialized")
     else:
-        logger.warning("⚠️  NewsAPI key not found - skipping NewsAPI")
+        logger.warning("[WARN] NewsAPI key not found - skipping NewsAPI")
+
+    if finnhub_key:
+        providers.append(FinnhubNewsProvider(finnhub_key, session=session))
+        logger.info("[OK] Finnhub provider initialized")
+    else:
+        logger.warning("[WARN] Finnhub API key not found - skipping Finnhub")
 
     if av_key:
         providers.append(AlphaVantageNewsProvider(av_key, session=session))
-        logger.info("✅ Alpha Vantage provider initialized")
+        logger.info("[OK] Alpha Vantage provider initialized")
     else:
-        logger.warning("⚠️  Alpha Vantage API key not found - skipping Alpha Vantage")
+        logger.warning("[WARN] Alpha Vantage API key not found - skipping Alpha Vantage")
 
     if not providers:
-        logger.error("❌ NO API PROVIDERS INITIALIZED! Please configure API keys in Settings.")
+        logger.error("[ERROR] NO API PROVIDERS INITIALIZED! Please configure API keys in Settings.")
 
     return providers
 
@@ -383,7 +383,7 @@ def fetch_news_with_fallback(
 
     for provider in providers:
         try:
-            logger.info(f"🔍 Trying provider: {provider.name}")
+            logger.info(f"[TRY] Trying provider: {provider.name}")
             articles = provider.fetch(
                 ticker=ticker,
                 query=query,
@@ -393,17 +393,17 @@ def fetch_news_with_fallback(
             )
 
             if articles:
-                logger.info(f"✅ {provider.name} returned {len(articles)} articles for {ticker}")
+                logger.info(f"[OK] {provider.name} returned {len(articles)} articles for {ticker}")
                 all_articles = articles
                 break
             else:
-                logger.warning(f"⚠️  {provider.name} returned 0 articles, trying next...")
+                logger.warning(f"[WARN] {provider.name} returned 0 articles, trying next...")
         except Exception as e:
-            logger.error(f"❌ Error with {provider.name}: {str(e)[:200]}")
+            logger.error(f"[ERROR] Error with {provider.name}: {str(e)[:200]}")
             continue
 
     if not all_articles:
-        logger.warning(f"⚠️  No articles found for {ticker} across all providers")
+        logger.warning(f"[WARN] No articles found for {ticker} across all providers")
 
     return all_articles
 

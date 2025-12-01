@@ -19,6 +19,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 import yfinance as yf
+import requests
 from functools import lru_cache
 import time
 
@@ -86,7 +87,21 @@ def fetch_technical_features(
             else:
                 return stock.history(period=f"{lookback_days}d")
         
-        df = _retry_with_backoff(_fetch_data)
+        # Try yfinance first
+        try:
+            df = _retry_with_backoff(_fetch_data)
+        except Exception:
+            df = pd.DataFrame()
+
+        # If yfinance failed or returned empty, try AlphaVantage as a fallback
+        if df.empty:
+            try:
+                av_df = _fetch_prices_alphavantage(ticker, lookback_days)
+                if av_df is not None and not av_df.empty:
+                    df = av_df
+            except Exception:
+                # keep df as empty and let defaults be used below
+                df = pd.DataFrame()
         
         if df.empty:
             log_warning(f"No price data for {ticker}, using defaults", "TECH")
@@ -234,6 +249,86 @@ def fetch_technical_features(
     except Exception as e:
         log_error(f"Technical features failed for {ticker}: {e}", "TECH")
         return _get_default_technical_features()
+
+
+def _fetch_prices_alphavantage(ticker: str, lookback_days: int = 60) -> Optional[pd.DataFrame]:
+    """Fetch historical daily prices from AlphaVantage as a fallback.
+
+    Returns a DataFrame with columns: Open, High, Low, Close, Volume indexed by DatetimeIndex.
+    Uses the TIME_SERIES_DAILY_ADJUSTED endpoint and converts the JSON to DataFrame.
+    """
+    try:
+        from src.utils.api_key_manager import get_api_key
+
+        av_key = get_api_key("alphavantage")
+        if not av_key:
+            raise RuntimeError("AlphaVantage API key not configured")
+
+        BASE = "https://www.alphavantage.co/query"
+        params = {
+            "function": "TIME_SERIES_DAILY_ADJUSTED",
+            "symbol": ticker,
+            "outputsize": "full",
+            "apikey": av_key,
+        }
+
+        resp = requests.get(BASE, params=params, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+
+        # AlphaVantage returns a key like 'Time Series (Daily)'
+        ts_key = None
+        for k in data.keys():
+            if "Time Series" in k:
+                ts_key = k
+                break
+
+        if ts_key is None:
+            raise RuntimeError("AlphaVantage returned no time series data")
+
+        records = data[ts_key]
+        df = pd.DataFrame.from_dict(records, orient="index")
+        # The keys are like '1. open', '2. high', etc.
+        df.rename(columns=lambda c: c.split('. ')[1] if '. ' in c else c, inplace=True)
+        # Ensure required columns exist and cast types
+        df = df.rename(columns={
+            'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'
+        }, errors='ignore')
+
+        # Some alphavantage keys may have different names; coerce to expected ones
+        # Try to map common patterns
+        if 'Open' not in df.columns and '1. open' in df.columns:
+            df['Open'] = df['1. open']
+        if 'High' not in df.columns and '2. high' in df.columns:
+            df['High'] = df['2. high']
+        if 'Low' not in df.columns and '3. low' in df.columns:
+            df['Low'] = df['3. low']
+        if 'Close' not in df.columns and '4. close' in df.columns:
+            df['Close'] = df['4. close']
+        if 'Volume' not in df.columns and '6. volume' in df.columns:
+            df['Volume'] = df['6. volume']
+
+        # Convert index to datetime and sort
+        df.index = pd.to_datetime(df.index)
+        df = df.sort_index()
+
+        # Keep only last lookback_days
+        if lookback_days and len(df) > lookback_days:
+            df = df.iloc[-lookback_days:]
+
+        # Ensure numeric types
+        for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        # Drop rows that are completely NA
+        df = df.dropna(how='all')
+
+        return df
+
+    except Exception as e:
+        log_warning(f"AlphaVantage fallback failed for {ticker}: {e}", "TECH")
+        return None
 
 
 def _get_default_technical_features() -> Dict[str, float]:

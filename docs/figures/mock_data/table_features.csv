@@ -1,0 +1,4 @@
+feature_group,features,examples,purpose
+Sentiment,24 features (FinBERT/VADER/TextBlob aggregates),"ensemble_sentiment_mean, CEO_sentiment",Text signal
+Technical,"15 indicators (RSI, MACD, ...)","RSI, MACD, VWAP",Price dynamics
+Lagged,4 lagged features,sentiment_lag1,Autoregression / persistence

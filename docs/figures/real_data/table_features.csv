@@ -1,0 +1,4 @@
+feature_group,features,examples,purpose
+Sentiment,"ensemble_sentiment_mean, num_headlines, model_consensus_mean",ensemble_sentiment_mean,Text signal
+Technical,"RSI, MACD, VWAP, ATR",RSI,Price dynamics
+Lagged,"ensemble_sentiment_mean_lag1, daily_return_lag1",ensemble_sentiment_mean_lag1,Autoregression

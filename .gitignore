@@ -67,19 +67,55 @@ logs/
 .streamlit/
 
 # ----------------------------------------
-# Internal documentation (should NOT be public)
-FINAL_SUMMARY.md
-GITHUB_READY_SUMMARY.md
-FIXES_SUMMARY.md
+# Internal/Temporary Documentation (should NOT be public)
+# Keep only: README.md, LICENSE, and research paper
+ALL_FIXES_COMPLETE_READY_TO_TEST.md
+CHANGE_LOG.md
+CODE_CHANGES_VISUAL_GUIDE.md
+COMPLETE_FIX_SUMMARY.md
+COMPREHENSIVE_FIX_SUMMARY_LIVE_MARKET.md
 CRITICAL_VALIDATION_CHECKLIST.md
+FINAL_FIX_SUMMARY.md
+FINAL_SUMMARY.md
+FIXES_APPLIED.md
+FIXES_COMPLETE.md
+FIXES_FOR_LIVE_MARKET_AND_DATA_ISSUES.md
+FIXES_SUMMARY.md
+FIX_DOCUMENTATION_INDEX.md
+GITHUB_READY_SUMMARY.md
+HOTFIX_APPLIED.md
+IMMEDIATE_ACTION_GUIDE.md
+IMPLEMENTATION_COMPLETE.md
+IMPLEMENTATION_GUIDE.md
+LATEST_FIXES_APPLIED.md
+LIVE_MARKET_FIX_GUIDE.md
+MASTERS_APPLICATION_GUIDE.md
+MASTERS_VERDICT.md
 PRE_PUBLICATION_CHECKLIST.md
+PROJECT_OVERVIEW.md
+QUICK_FIX_GUIDE.md
+QUICK_START_GUIDE.md
+SCHOOL_RECOMMENDATIONS.md
 TASKS_COMPLETED.md
 TEST_FIX_SUMMARY.md
+VERIFICATION_CHECKLIST.md
+paper_research_chatgpt.md
+
+# ----------------------------------------
+# Temporary folders
+models\ copy/
+notebooks\ copy/
+Zresearch/
+Documentation/
+
+# ----------------------------------------
+# Build/Cache directories
+catboost_info/
 
 # ----------------------------------------
 # Optional: Large Models (use Git LFS if pushing)
 # models/*.pkl
 
 # ----------------------------------------
-# Optional: Large Data Files
+# Optional: Large Data Files (can include if needed for reproducibility)
 # research_outputs/tables/*.csv

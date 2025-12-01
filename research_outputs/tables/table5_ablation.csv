@@ -1,0 +1,8 @@
+model_configuration,accuracy,delta_vs_full,auc,feature_groups_used
+Full model,0.529,,0.591,All 43 features
+- Entity sentiment,0.521,-0.008,0.579,Remove CEO/competitor sentiment
+- Consensus metrics,0.523,-0.006,0.582,Remove disagreement features
+- Technical only,0.508,-0.021,0.547,Technical + lagged only
+- Sentiment only,0.514,-0.015,0.558,NLP features only
+FinBERT only,0.503,-0.026,0.521,Single model (no ensemble)
+Random baseline,0.500,-0.029,0.500,

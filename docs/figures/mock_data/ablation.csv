@@ -1,0 +1,6 @@
+experiment,accuracy
+All features,0.532
+Minus entity sentiment,0.524
+Minus disagreement,0.526
+Sentiment-only,0.517
+Technical-only,0.508

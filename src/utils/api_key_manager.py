@@ -70,11 +70,11 @@ def save_api_keys(keys: Dict[str, str]) -> bool:
         with open(API_KEYS_FILE, "w") as f:
             json.dump(existing_keys, f, indent=2)
         
-        print(f"✅ API keys saved to {API_KEYS_FILE}")
+        print(f"[OK] API keys saved to {API_KEYS_FILE}")
         return True
         
     except Exception as e:
-        print(f"❌ Failed to save API keys: {e}")
+        print(f"[ERROR] Failed to save API keys: {e}")
         return False
 
 
@@ -99,7 +99,7 @@ def load_api_keys() -> Dict[str, Optional[str]]:
     # Try loading from config file first
     if API_KEYS_FILE.exists():
         try:
-            with open(API_KEYS_FILE, "r") as f:
+            with open(API_KEYS_FILE, "r", encoding="utf-8") as f:
                 file_keys = json.load(f)
             
             # Update keys from file
@@ -107,9 +107,9 @@ def load_api_keys() -> Dict[str, Optional[str]]:
                 if key in file_keys and file_keys[key]:
                     keys[key] = file_keys[key]
             
-            print(f"✅ Loaded API keys from {API_KEYS_FILE}")
+            print(f"[OK] Loaded API keys from {API_KEYS_FILE}")
         except Exception as e:
-            print(f"⚠️  Failed to load API keys from file: {e}")
+            print(f"[WARN] Failed to load API keys from file: {e}")
     
     # Fallback to environment variables
     for key, env_var in ENV_KEY_NAMES.items():
@@ -117,14 +117,14 @@ def load_api_keys() -> Dict[str, Optional[str]]:
             env_value = os.getenv(env_var)
             if env_value:
                 keys[key] = env_value
-                print(f"✅ Loaded {key} from environment variable")
+                print(f"[OK] Loaded {key} from environment variable")
     
     # Report status
     active_keys = [k for k, v in keys.items() if v is not None]
     if active_keys:
-        print(f"✅ Active API providers: {', '.join(active_keys)}")
+        print(f"[OK] Active API providers: {', '.join(active_keys)}")
     else:
-        print("⚠️  No API keys found. Please configure in Settings.")
+        print("[WARN] No API keys found. Please configure in Settings.")
     
     return keys
 
@@ -167,10 +167,10 @@ def clear_api_keys() -> bool:
     try:
         if API_KEYS_FILE.exists():
             API_KEYS_FILE.unlink()
-            print(f"✅ Cleared API keys from {API_KEYS_FILE}")
+            print(f"[OK] Cleared API keys from {API_KEYS_FILE}")
         return True
     except Exception as e:
-        print(f"❌ Failed to clear API keys: {e}")
+        print(f"[ERROR] Failed to clear API keys: {e}")
         return False
 
 
@@ -204,7 +204,7 @@ if __name__ == "__main__":
         "alphavantage": "test_alphavantage_key_789"
     }
     success = save_api_keys(test_keys)
-    print(f"Save result: {'✅ Success' if success else '❌ Failed'}")
+    print(f"Save result: {'[OK] Success' if success else '[ERROR] Failed'}")
     
     # Test 2: Load keys
     print("\n📖 Test 2: Loading API keys...")
@@ -219,7 +219,7 @@ if __name__ == "__main__":
     validation = validate_api_keys()
     print("Validation results:")
     for provider, is_valid in validation.items():
-        status = "✅ Configured" if is_valid else "❌ Missing"
+        status = "[OK] Configured" if is_valid else "[ERROR] Missing"
         print(f"  {provider}: {status}")
     
     # Test 4: Get single key
@@ -231,7 +231,7 @@ if __name__ == "__main__":
     # Test 5: Clear keys
     print("\n🗑️  Test 5: Clearing API keys...")
     clear_success = clear_api_keys()
-    print(f"Clear result: {'✅ Success' if clear_success else '❌ Failed'}")
+    print(f"Clear result: {'[OK] Success' if clear_success else '[ERROR] Failed'}")
     
     print("\n" + "=" * 60)
-    print("✅ All tests complete!")
+    print("[OK] All tests complete!")

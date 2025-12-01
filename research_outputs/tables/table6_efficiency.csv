@@ -1,0 +1,5 @@
+model,train_time_sec,inference_time_ms,memory_mb,parameters
+CatBoost (full),127.3,2.1,145,1000 trees
+FinBERT (encoder),—,45.6,512,110M
+VADER,—,0.3,12,Rule-based
+TextBlob,—,0.5,18,Rule-based

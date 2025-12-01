@@ -1,0 +1,934 @@
+"""
+Generate figures and tables for the paper `paper_research.md`.
+
+Usage:
+  - With real data: provide paths to CSV files using `--data-dir`.
+  - For a quick preview: use `--mock` to generate example figures with synthetic data.
+
+Expected CSVs in --data-dir when using real data
+(you can gradually add these as your pipeline matures):
+
+Core (already used in the previous version)
+  - roc_probs.csv              # y_true + model probabilities
+  - backtest.csv               # date, ml_cum, baseline_cum
+  - shap.csv                   # feature, mean_abs_shap
+  - consensus.csv              # consensus
+  - ablation.csv               # experiment, accuracy
+  - monthly_accuracy.csv       # month, accuracy
+  - table_dataset.csv          # dataset summary
+  - table_features.csv         # feature groups summary
+  - table_per_fold.csv         # per-fold performance
+  - table_cross_ticker.csv     # cross-ticker accuracy (square matrix, index=tickers)
+
+New (for extended figures/tables)
+  - daily_returns.csv          # date, ml_ret, bh_ret
+  - calibration.csv            # y_true, y_prob (ensemble positive prob)
+  - predictions.csv            # y_true, y_pred (0/1)  OR confusion_matrix.csv 2x2
+  - corr_matrix.csv            # correlation matrix (index + columns = features)
+  - leakage_summary.csv        # setting, accuracy  (e.g. 'Leaky', 'Leak-free')
+  - table_features_full.csv    # full feature list
+  - table_hyperparams.csv      # CatBoost hyperparameters
+  - table_stats_tests.csv      # statistical tests summary
+
+Outputs are saved into `out_dir` (default `docs/figures`).
+
+Dependencies: pandas, numpy, matplotlib, seaborn, scikit-learn
+Optional: shap for SHAP plots
+
+Examples:
+  python scripts/generate_figures.py --mock --out-dir docs/figures
+  python scripts/generate_figures.py --data-dir research_outputs --out-dir docs/figures
+"""
+from pathlib import Path
+import argparse
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib import patches
+from sklearn.metrics import roc_curve, auc, confusion_matrix
+
+sns.set(style="whitegrid")
+
+
+def save_figure_variants(fig, png_path: Path, dpi=200):
+    """Save figure as PNG, SVG and PDF using the same stem."""
+    png_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(png_path, bbox_inches="tight", dpi=dpi)
+    svg_path = png_path.with_suffix(".svg")
+    pdf_path = png_path.with_suffix(".pdf")
+    for path in (svg_path, pdf_path):
+        try:
+            fig.savefig(path, bbox_inches="tight")
+        except Exception as e:
+            print(f"Failed to save {path}: {e}")
+
+
+def ensure_out_dir(out_dir: Path):
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+
+# ---------------------------------------------------------------------
+#  FIGURES ALREADY IN YOUR PROJECT
+# ---------------------------------------------------------------------
+def figure1_walk_forward(save_path: Path):
+    """Draw a timeline-style walk-forward validation diagram."""
+    fig, ax = plt.subplots(figsize=(10, 2.8))
+    ax.axis("off")
+
+    labels = ["Train", "Test", "Train", "Test", "Train", "Test"]
+    start_x = 0.02
+    width = 0.15
+    gap = 0.02
+    colors = ["#4c72b0", "#dd8452"] * 3
+    x = start_x
+
+    for lbl, c in zip(labels, colors):
+        rect = patches.FancyBboxPatch(
+            (x, 0.35),
+            width,
+            0.4,
+            boxstyle="round,pad=0.02",
+            ec="k",
+            fc=c,
+            alpha=0.95,
+        )
+        ax.add_patch(rect)
+        ax.text(
+            x + width / 2,
+            0.55,
+            lbl,
+            ha="center",
+            va="center",
+            fontsize=12,
+            color="white",
+            weight="bold",
+        )
+        if lbl == "Test":
+            ax.plot(
+                [x + width + 0.005, x + width + 0.005],
+                [0.2, 0.8],
+                ls="--",
+                color="gray",
+                linewidth=1,
+            )
+        x += width + gap
+
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_title("Figure 1 — Walk-Forward Validation (Train → Test → Train → Test)")
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+def figure2_pipeline(save_path: Path):
+    """Block diagram of end-to-end pipeline."""
+    fig, ax = plt.subplots(figsize=(10, 2.8))
+    ax.axis("off")
+
+    blocks = [
+        "News APIs",
+        "NLP models",
+        "Feature Engineering",
+        "CatBoost",
+        "Predictions",
+        "Backtest",
+    ]
+    x = 0.03
+    w = 0.15
+    gap = 0.03
+    for i, b in enumerate(blocks):
+        rect = patches.Rectangle(
+            (x, 0.35), w, 0.3, ec="k", fc="#2b8cbe", alpha=0.9
+        )
+        ax.add_patch(rect)
+        ax.text(
+            x + w / 2,
+            0.5,
+            b,
+            ha="center",
+            va="center",
+            color="white",
+            fontsize=10,
+            weight="bold",
+        )
+        x += w + gap
+        if i < len(blocks) - 1:
+            ax.annotate(
+                "",
+                xy=(x - gap / 2 - 0.01, 0.5),
+                xytext=(x - (w + gap), 0.5),
+                arrowprops=dict(arrowstyle="->", lw=1.6),
+            )
+
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_title("Figure 2 — Overall Pipeline")
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+def figure3_shap_bar(shap_df: pd.DataFrame, save_path: Path, top_n=12):
+    """Horizontal bar plot for SHAP feature importance."""
+    df = shap_df.sort_values("mean_abs_shap", ascending=True).tail(top_n)
+    fig, ax = plt.subplots(figsize=(7, 6))
+    ax.barh(df["feature"], df["mean_abs_shap"], color="#4c72b0")
+    ax.set_xlabel("Mean |SHAP value|")
+    ax.set_title("Figure 3 — SHAP Feature Importance")
+    fig.tight_layout()
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+def figure4_disagreement_hist(consensus_series: pd.Series, save_path: Path):
+    fig, ax = plt.subplots(figsize=(7, 4))
+    sns.histplot(
+        consensus_series.dropna(), bins=30, kde=True, color="#dd8452", ax=ax
+    )
+    ax.set_xlabel("Consensus score (1 = full agreement, 0 = max disagreement)")
+    ax.set_title("Figure 4 — Ensemble Disagreement (Consensus) Distribution")
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+def figure5_roc_curves(y_true: pd.Series, probs: dict, save_path: Path):
+    """Plot ROC curves for multiple models."""
+    fig, ax = plt.subplots(figsize=(7, 6))
+    for name, p in probs.items():
+        fpr, tpr, _ = roc_curve(y_true, p)
+        ax.plot(fpr, tpr, label=f"{name} (AUC={auc(fpr, tpr):.3f})")
+    ax.plot([0, 1], [0, 1], "k--", label="Random")
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    ax.set_title("Figure 5 — ROC Curves")
+    ax.legend(loc="lower right")
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+def figure6_backtest_equity_curve(df: pd.DataFrame, save_path: Path):
+    """df expected columns: ['date', 'ml_cum', 'baseline_cum']"""
+    df = df.sort_values("date")
+    fig, ax = plt.subplots(figsize=(9, 4))
+    ax.plot(df["date"], df["ml_cum"], label="ML Strategy", lw=2)
+    ax.plot(
+        df["date"], df["baseline_cum"], label="Buy & Hold", lw=1.5, alpha=0.8
+    )
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Cumulative Return")
+    ax.set_title("Figure 6 — Backtest Equity Curve")
+    ax.legend()
+    fig.autofmt_xdate()
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+def figure7_ablation_bar(ablation_df: pd.DataFrame, save_path: Path):
+    """ablation_df: columns ['experiment', 'accuracy']"""
+    df = ablation_df.sort_values("accuracy", ascending=False)
+    fig, ax = plt.subplots(figsize=(7, 5))
+    sns.barplot(
+        x="accuracy", y="experiment", data=df, palette="Blues_r", ax=ax
+    )
+    ax.set_xlabel("Accuracy")
+    ax.set_title("Figure 7 — Ablation Study")
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+def figure8_temporal_stability(monthly_df: pd.DataFrame, save_path: Path):
+    """monthly_df: columns ['month', 'accuracy'] with month as datetime or string"""
+    fig, ax = plt.subplots(figsize=(9, 3))
+    ax.plot(
+        pd.to_datetime(monthly_df["month"]),
+        monthly_df["accuracy"],
+        marker="o",
+        lw=1.6,
+    )
+    ax.set_xlabel("Month")
+    ax.set_ylabel("Accuracy")
+    ax.set_title("Figure 8 — Temporal Stability (Monthly Accuracy)")
+    fig.autofmt_xdate()
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------
+#  NEW FIGURES
+# ---------------------------------------------------------------------
+def figure9_return_distribution(daily_df: pd.DataFrame, save_path: Path):
+    """daily_df expected columns: ['ml_ret', 'bh_ret'] (daily returns)."""
+    fig, ax = plt.subplots(figsize=(7, 4))
+    sns.kdeplot(daily_df["ml_ret"], ax=ax, label="ML Strategy", lw=2)
+    sns.kdeplot(daily_df["bh_ret"], ax=ax, label="Buy & Hold", lw=2)
+    ax.set_xlabel("Daily Return")
+    ax.set_ylabel("Density")
+    ax.set_title("Figure 9 — Daily Return Distribution")
+    ax.legend()
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+def figure10_calibration(calib_df: pd.DataFrame, save_path: Path, n_bins=10):
+    """calib_df columns: ['y_true', 'y_prob']."""
+    y_true = calib_df["y_true"].values
+    y_prob = calib_df["y_prob"].values
+    bins = np.linspace(0, 1, n_bins + 1)
+    digitized = np.digitize(y_prob, bins) - 1
+    prob_mean = []
+    frac_pos = []
+    for b in range(n_bins):
+        mask = digitized == b
+        if mask.sum() == 0:
+            continue
+        prob_mean.append(y_prob[mask].mean())
+        frac_pos.append(y_true[mask].mean())
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.plot([0, 1], [0, 1], "k--", label="Perfectly calibrated")
+    ax.plot(prob_mean, frac_pos, marker="o", lw=2, label="Ensemble")
+    ax.set_xlabel("Predicted probability")
+    ax.set_ylabel("Observed frequency")
+    ax.set_title("Figure 10 — Calibration Curve")
+    ax.legend(loc="upper left")
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+def figure11_confusion(pred_df_or_cm: pd.DataFrame, save_path: Path):
+    """
+    If pred_df_or_cm has columns ['y_true','y_pred'], compute confusion matrix.
+    Otherwise assume it is already a 2x2 matrix DataFrame with index/columns.
+    """
+    if set(pred_df_or_cm.columns) >= {"y_true", "y_pred"}:
+        y_true = pred_df_or_cm["y_true"].values
+        y_pred = pred_df_or_cm["y_pred"].values
+        cm = confusion_matrix(y_true, y_pred)
+        cm_df = pd.DataFrame(
+            cm,
+            index=["Actual DOWN", "Actual UP"],
+            columns=["Predicted DOWN", "Predicted UP"],
+        )
+    else:
+        cm_df = pred_df_or_cm
+
+    fig, ax = plt.subplots(figsize=(5, 4))
+    sns.heatmap(
+        cm_df,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        cbar=False,
+        ax=ax,
+    )
+    ax.set_title("Figure 11 — Confusion Matrix (Aggregated)")
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+def figure12_corr_heatmap(corr_df: pd.DataFrame, save_path: Path):
+    """corr_df: square correlation matrix (index & columns = features)."""
+    fig, ax = plt.subplots(figsize=(7, 6))
+    sns.heatmap(
+        corr_df,
+        cmap="coolwarm",
+        center=0.0,
+        square=True,
+        linewidths=0.5,
+        cbar_kws={"label": "Correlation"},
+        ax=ax,
+    )
+    ax.set_title("Figure 12 — Feature Correlation Heatmap")
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+def figure13_leakage_bar(leak_df: pd.DataFrame, save_path: Path):
+    """leak_df: columns ['setting','accuracy'] (e.g. Leaky vs Leak-free)."""
+    fig, ax = plt.subplots(figsize=(6, 4))
+    sns.barplot(
+        x="setting", y="accuracy", data=leak_df, palette="Set2", ax=ax
+    )
+    ax.set_ylabel("Accuracy")
+    ax.set_xlabel("")
+    ax.set_title("Figure 13 — Effect of Fixing Temporal Leakage")
+    for p in ax.patches:
+        ax.annotate(
+            f"{p.get_height():.3f}",
+            (p.get_x() + p.get_width() / 2, p.get_height()),
+            ha="center",
+            va="bottom",
+        )
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+def figure14_entity_example(save_path: Path):
+    """
+    Schematic example of entity-level sentiment attribution.
+    This is a stylised figure (no CSV needed).
+    """
+    fig, ax = plt.subplots(figsize=(9, 2.8))
+    ax.axis("off")
+
+    headline = (
+        '"Apple CEO Tim Cook warns of slowing demand while '
+        "rival Samsung posts record profits.'"
+    )
+    ax.text(
+        0.02,
+        0.8,
+        "Headline:",
+        fontsize=11,
+        weight="bold",
+        transform=ax.transAxes,
+    )
+    ax.text(0.16, 0.8, headline, fontsize=10, transform=ax.transAxes)
+
+    # Colored boxes for entities
+    ax.text(
+        0.21,
+        0.55,
+        "Apple",
+        fontsize=10,
+        bbox=dict(boxstyle="round", fc="#4c72b0", ec="none", alpha=0.3),
+        transform=ax.transAxes,
+    )
+    ax.text(
+        0.32,
+        0.55,
+        "Tim Cook",
+        fontsize=10,
+        bbox=dict(boxstyle="round", fc="#dd8452", ec="none", alpha=0.3),
+        transform=ax.transAxes,
+    )
+    ax.text(
+        0.63,
+        0.55,
+        "Samsung",
+        fontsize=10,
+        bbox=dict(boxstyle="round", fc="#55a868", ec="none", alpha=0.3),
+        transform=ax.transAxes,
+    )
+
+    ax.text(
+        0.02,
+        0.28,
+        "spaCy NER → entity spans\n"
+        "Rule-based attribution → sentiment per entity",
+        fontsize=10,
+        transform=ax.transAxes,
+    )
+
+    ax.text(
+        0.55,
+        0.28,
+        "Outputs:",
+        fontsize=11,
+        weight="bold",
+        transform=ax.transAxes,
+    )
+    ax.text(
+        0.65,
+        0.28,
+        "CEO_sentiment = negative\n"
+        "Company_sentiment (Apple) = mildly negative\n"
+        "Competitor_sentiment (Samsung) = positive",
+        fontsize=10,
+        transform=ax.transAxes,
+    )
+
+    ax.set_title("Figure 14 — Example of Entity-Level Sentiment Attribution")
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------
+#  TABLE RENDERING
+# ---------------------------------------------------------------------
+def render_table_image(df: pd.DataFrame, save_path: Path, title: str = None):
+    fig, ax = plt.subplots(figsize=(10, max(1.5, 0.35 * len(df))))
+    ax.axis("off")
+    table = ax.table(
+        cellText=df.values,
+        colLabels=df.columns,
+        cellLoc="center",
+        loc="center",
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    table.scale(1, 1.2)
+    if title:
+        ax.set_title(title, fontweight="bold")
+    save_figure_variants(fig, save_path)
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------
+#  MOCK DATA FOR QUICK PREVIEW
+# ---------------------------------------------------------------------
+def make_mock_data(base_dir: Path):
+    """Create small mock datasets for quick preview and testing."""
+    base_dir.mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(42)
+
+    # ROC / probabilities
+    n = 500
+    y = rng.integers(0, 2, size=n)
+    probs = {
+        "FinBERT-only": rng.random(n) * 0.4 + y * 0.4,
+        "Technical-only": rng.random(n) * 0.4 + y * 0.35,
+        "Ensemble": rng.random(n) * 0.35 + y * 0.45,
+    }
+    pd.DataFrame({"y_true": y, **probs}).to_csv(
+        base_dir / "roc_probs.csv", index=False
+    )
+
+    # Backtest cumulative equity
+    dates = pd.date_range("2020-01-01", periods=200, freq="B")
+    ml = np.cumsum(rng.normal(0.0008, 0.01, size=len(dates)))
+    bh = np.cumsum(rng.normal(0.0005, 0.009, size=len(dates)))
+    pd.DataFrame(
+        {"date": dates, "ml_cum": ml, "baseline_cum": bh}
+    ).to_csv(base_dir / "backtest.csv", index=False)
+
+    # Daily returns (for return distribution)
+    ml_ret = rng.normal(0.0008, 0.01, size=len(dates))
+    bh_ret = rng.normal(0.0005, 0.009, size=len(dates))
+    pd.DataFrame(
+        {"date": dates, "ml_ret": ml_ret, "bh_ret": bh_ret}
+    ).to_csv(base_dir / "daily_returns.csv", index=False)
+
+    # SHAP
+    features = [
+        "ensemble_sentiment_mean",
+        "num_headlines",
+        "RSI",
+        "MACD",
+        "CEO_sentiment",
+        "VWAP",
+        "sentiment_lag1",
+        "volatility_lag1",
+        "OBV",
+        "CMF",
+    ]
+    shap_df = pd.DataFrame(
+        {
+            "feature": features,
+            "mean_abs_shap": np.abs(
+                rng.normal(0.07, 0.02, size=len(features))
+            ),
+        }
+    )
+    shap_df.to_csv(base_dir / "shap.csv", index=False)
+
+    # Consensus
+    consensus = rng.beta(0.7, 4, size=n)
+    pd.DataFrame({"consensus": consensus}).to_csv(
+        base_dir / "consensus.csv", index=False
+    )
+
+    # Ablation
+    ablation = pd.DataFrame(
+        {
+            "experiment": [
+                "All features",
+                "Minus entity sentiment",
+                "Minus disagreement",
+                "Sentiment-only (proxy)",
+                "Technical-only (proxy)",
+            ],
+            "accuracy": [0.532, 0.524, 0.526, 0.512, 0.50],
+        }
+    )
+    ablation.to_csv(base_dir / "ablation.csv", index=False)
+
+    # Monthly accuracy
+    months = pd.date_range("2019-01-01", periods=36, freq="M")
+    monthly = pd.DataFrame(
+        {
+            "month": months,
+            "accuracy": 0.502
+            + 0.02 * np.sin(np.linspace(0, 6, len(months)))
+            + rng.normal(0, 0.01, len(months)),
+        }
+    )
+    monthly.to_csv(base_dir / "monthly_accuracy.csv", index=False)
+
+    # Dataset table
+    dataset = pd.DataFrame(
+        {
+            "ticker": ["AAPL", "MSFT", "GOOGL"],
+            "date_range": ["2016-01-01:2024-12-31"] * 3,
+            "headlines": [12000, 11800, 11000],
+            "trading_days": [2000, 2000, 2000],
+            "valid_samples": [1500, 1480, 1420],
+        }
+    )
+    dataset.to_csv(base_dir / "table_dataset.csv", index=False)
+
+    # Feature groups
+    feature_groups = pd.DataFrame(
+        {
+            "feature_group": ["Sentiment", "Technical", "Lagged"],
+            "features": [
+                "24 features (FinBERT/VADER/TextBlob aggregates)",
+                "15 indicators (RSI, MACD, ...)",
+                "4 lagged features",
+            ],
+            "examples": [
+                "ensemble_sentiment_mean, CEO_sentiment",
+                "RSI, MACD, VWAP",
+                "sentiment_lag1",
+            ],
+            "purpose": ["Text signal", "Price dynamics", "Autoregression"],
+        }
+    )
+    feature_groups.to_csv(base_dir / "table_features.csv", index=False)
+
+    # Per-fold table
+    per_fold = pd.DataFrame(
+        {
+            "fold_id": list(range(1, 7)),
+            "train_window": [
+                "2016-2018",
+                "2016-2018",
+                "2016-2018",
+                "2016-2018",
+                "2016-2018",
+                "2016-2018",
+            ],
+            "test_window": ["2019", "2020", "2021", "2022", "2023", "2024"],
+            "accuracy": [0.52, 0.53, 0.535, 0.528, 0.537, 0.532],
+        }
+    )
+    per_fold.to_csv(base_dir / "table_per_fold.csv", index=False)
+
+    # Cross-ticker
+    cross = pd.DataFrame(
+        np.round(0.48 + rng.random((3, 3)) * 0.06, 3),
+        columns=["AAPL", "MSFT", "GOOGL"],
+        index=["AAPL", "MSFT", "GOOGL"],
+    )
+    cross.to_csv(base_dir / "table_cross_ticker.csv")
+
+    # Calibration data
+    calib = pd.DataFrame(
+        {
+            "y_true": y,
+            "y_prob": probs["Ensemble"],
+        }
+    )
+    calib.to_csv(base_dir / "calibration.csv", index=False)
+
+    # Predictions (for confusion matrix)
+    y_pred = (calib["y_prob"] > 0.5).astype(int)
+    pd.DataFrame({"y_true": y, "y_pred": y_pred}).to_csv(
+        base_dir / "predictions.csv", index=False
+    )
+
+    # Correlation matrix
+    feat_mat = rng.normal(size=(500, 6))
+    corr = pd.DataFrame(
+        feat_mat,
+        columns=[
+            "ensemble_sentiment_mean",
+            "RSI",
+            "MACD",
+            "CEO_sentiment",
+            "VWAP",
+            "sentiment_lag1",
+        ],
+    ).corr()
+    corr.to_csv(base_dir / "corr_matrix.csv")
+
+    # Leakage summary
+    leak_df = pd.DataFrame(
+        {
+            "setting": ["Leaky (random split)", "Leak-free (walk-forward)"],
+            "accuracy": [0.65, 0.532],
+        }
+    )
+    leak_df.to_csv(base_dir / "leakage_summary.csv", index=False)
+
+    # Full feature list table
+    features_full = pd.DataFrame(
+        {
+            "feature_name": [
+                "ensemble_sentiment_mean",
+                "CEO_sentiment",
+                "competitor_sentiment",
+                "num_headlines",
+                "RSI",
+                "MACD",
+                "VWAP",
+                "sentiment_lag1",
+                "daily_return_lag1",
+                "volume_lag1",
+            ],
+            "group": [
+                "Sentiment",
+                "Sentiment",
+                "Sentiment",
+                "Sentiment",
+                "Technical",
+                "Technical",
+                "Technical",
+                "Lagged",
+                "Lagged",
+                "Lagged",
+            ],
+            "description": [
+                "Confidence-weighted mean sentiment across models",
+                "Entity-level sentiment for CEO mentions",
+                "Entity-level sentiment for competitors",
+                "Number of headlines for the day",
+                "14-day relative strength index",
+                "12/26 EMA moving-average convergence divergence",
+                "Volume-weighted average price",
+                "Previous-day ensemble sentiment mean",
+                "Previous-day return",
+                "Previous-day volume (normalised)",
+            ],
+        }
+    )
+    features_full.to_csv(base_dir / "table_features_full.csv", index=False)
+
+    # Hyperparameters table
+    hyperparams = pd.DataFrame(
+        {
+            "parameter": [
+                "iterations",
+                "learning_rate",
+                "depth",
+                "l2_leaf_reg",
+                "loss_function",
+                "random_seed",
+                "early_stopping_rounds",
+            ],
+            "value": [
+                "1000",
+                "0.03",
+                "6",
+                "3.0",
+                "Logloss",
+                "42",
+                "50 (on rolling validation)",
+            ],
+        }
+    )
+    hyperparams.to_csv(base_dir / "table_hyperparams.csv", index=False)
+
+    # Statistical tests summary
+    stats = pd.DataFrame(
+        {
+            "test": [
+                "Accuracy vs random (binomial)",
+                "ROC-AUC vs 0.5 (DeLong)",
+                "Diebold–Mariano (ML vs buy&hold returns)",
+            ],
+            "statistic": [4.1, 2.3, 2.15],
+            "p_value": ["< 0.001", "0.021", "0.032"],
+            "interpretation": [
+                "Accuracy significantly better than 50%",
+                "AUC significantly above random",
+                "ML strategy returns differ from baseline",
+            ],
+        }
+    )
+    stats.to_csv(base_dir / "table_stats_tests.csv", index=False)
+
+
+# ---------------------------------------------------------------------
+#  MAIN
+# ---------------------------------------------------------------------
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument(
+        "--data-dir",
+        type=str,
+        default=None,
+        help=(
+            "Directory with prepared CSVs "
+            "(roc_probs.csv, backtest.csv, shap.csv, consensus.csv, ablation.csv, "
+            "monthly_accuracy.csv, daily_returns.csv, calibration.csv, predictions.csv "
+            "or confusion_matrix.csv, corr_matrix.csv, leakage_summary.csv, "
+            "table_*.csv)"
+        ),
+    )
+    p.add_argument(
+        "--out-dir",
+        type=str,
+        default="docs/figures",
+        help="Output directory for figures",
+    )
+    p.add_argument(
+        "--mock",
+        action="store_true",
+        help="Generate mock data and plots",
+    )
+    args = p.parse_args()
+
+    out_dir = Path(args.out_dir)
+    ensure_out_dir(out_dir)
+
+    data_dir = Path(args.data_dir) if args.data_dir else out_dir / "mock_data"
+    if args.mock:
+        make_mock_data(data_dir)
+
+    # Core figures
+    figure1_walk_forward(out_dir / "figure1_walk_forward.png")
+    figure2_pipeline(out_dir / "figure2_pipeline.png")
+
+    try:
+        shap_df = pd.read_csv(data_dir / "shap.csv")
+        figure3_shap_bar(shap_df, out_dir / "figure3_shap.png")
+    except Exception as e:
+        print("shap.csv not found — skipping Figure 3", e)
+
+    try:
+        cons = pd.read_csv(data_dir / "consensus.csv")["consensus"]
+        figure4_disagreement_hist(cons, out_dir / "figure4_consensus_hist.png")
+    except Exception as e:
+        print("consensus.csv not found — skipping Figure 4", e)
+
+    try:
+        roc = pd.read_csv(data_dir / "roc_probs.csv")
+        y = roc["y_true"]
+        probs = {c: roc[c].values for c in roc.columns if c != "y_true"}
+        figure5_roc_curves(y, probs, out_dir / "figure5_roc.png")
+    except Exception as e:
+        print("roc_probs.csv not found — skipping Figure 5", e)
+
+    try:
+        back = pd.read_csv(data_dir / "backtest.csv")
+        back["date"] = pd.to_datetime(back["date"])
+        figure6_backtest_equity_curve(back, out_dir / "figure6_backtest.png")
+    except Exception as e:
+        print("backtest.csv not found — skipping Figure 6", e)
+
+    try:
+        ab = pd.read_csv(data_dir / "ablation.csv")
+        figure7_ablation_bar(ab, out_dir / "figure7_ablation.png")
+    except Exception as e:
+        print("ablation.csv not found — skipping Figure 7", e)
+
+    try:
+        monthly = pd.read_csv(data_dir / "monthly_accuracy.csv")
+        figure8_temporal_stability(monthly, out_dir / "figure8_monthly_accuracy.png")
+    except Exception as e:
+        print("monthly_accuracy.csv not found — skipping Figure 8", e)
+
+    # New figures
+    try:
+        daily = pd.read_csv(data_dir / "daily_returns.csv")
+        figure9_return_distribution(daily, out_dir / "figure9_return_dist.png")
+    except Exception as e:
+        print("daily_returns.csv not found — skipping Figure 9", e)
+
+    try:
+        calib = pd.read_csv(data_dir / "calibration.csv")
+        figure10_calibration(calib, out_dir / "figure10_calibration.png")
+    except Exception as e:
+        print("calibration.csv not found — skipping Figure 10", e)
+
+    try:
+        # prefer predictions.csv; fall back to confusion_matrix.csv if present
+        pred_path = data_dir / "predictions.csv"
+        if pred_path.exists():
+            preds = pd.read_csv(pred_path)
+        else:
+            preds = pd.read_csv(data_dir / "confusion_matrix.csv").set_index(
+                preds.columns[0]
+            )
+        figure11_confusion(preds, out_dir / "figure11_confusion.png")
+    except Exception as e:
+        print("predictions.csv / confusion_matrix.csv not found — skipping Figure 11", e)
+
+    try:
+        corr = pd.read_csv(data_dir / "corr_matrix.csv", index_col=0)
+        figure12_corr_heatmap(corr, out_dir / "figure12_corr_heatmap.png")
+    except Exception as e:
+        print("corr_matrix.csv not found — skipping Figure 12", e)
+
+    try:
+        leak_df = pd.read_csv(data_dir / "leakage_summary.csv")
+        figure13_leakage_bar(leak_df, out_dir / "figure13_leakage.png")
+    except Exception as e:
+        print("leakage_summary.csv not found — skipping Figure 13", e)
+
+    # Entity-level example does not need data
+    figure14_entity_example(out_dir / "figure14_entity_example.png")
+
+    # Tables
+    try:
+        df = pd.read_csv(data_dir / "table_dataset.csv")
+        render_table_image(
+            df, out_dir / "table1_dataset.png", title="Table 1 — Dataset Summary"
+        )
+    except Exception as e:
+        print("table_dataset.csv not found — skipping Table 1", e)
+
+    try:
+        df = pd.read_csv(data_dir / "table_features.csv")
+        render_table_image(
+            df, out_dir / "table2_features.png", title="Table 2 — Feature Groups"
+        )
+    except Exception as e:
+        print("table_features.csv not found — skipping Table 2", e)
+
+    try:
+        df = pd.read_csv(data_dir / "table_per_fold.csv")
+        render_table_image(
+            df,
+            out_dir / "table3_per_fold.png",
+            title="Table 3 — Per-Fold Performance",
+        )
+    except Exception as e:
+        print("table_per_fold.csv not found — skipping Table 3", e)
+
+    try:
+        df = pd.read_csv(data_dir / "table_cross_ticker.csv", index_col=0)
+        render_table_image(
+            df.reset_index().rename(columns={"index": "train_ticker"}),
+            out_dir / "table4_cross_ticker.png",
+            title="Table 4 — Cross-Ticker Accuracy",
+        )
+    except Exception as e:
+        print("table_cross_ticker.csv not found — skipping Table 4", e)
+
+    try:
+        df = pd.read_csv(data_dir / "table_features_full.csv")
+        render_table_image(
+            df,
+            out_dir / "table5_features_full.png",
+            title="Table 5 — Full Feature List",
+        )
+    except Exception as e:
+        print("table_features_full.csv not found — skipping Table 5", e)
+
+    try:
+        df = pd.read_csv(data_dir / "table_hyperparams.csv")
+        render_table_image(
+            df,
+            out_dir / "table6_hyperparams.png",
+            title="Table 6 — CatBoost Hyperparameters",
+        )
+    except Exception as e:
+        print("table_hyperparams.csv not found — skipping Table 6", e)
+
+    try:
+        df = pd.read_csv(data_dir / "table_stats_tests.csv")
+        render_table_image(
+            df,
+            out_dir / "table7_stats_tests.png",
+            title="Table 7 — Statistical Tests Summary",
+        )
+    except Exception as e:
+        print("table_stats_tests.csv not found — skipping Table 7", e)
+
+    print(f"All generated figures and tables saved to {out_dir.resolve()}")
+
+
+if __name__ == "__main__":
+    main()

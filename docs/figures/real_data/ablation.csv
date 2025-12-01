@@ -1,0 +1,4 @@
+experiment,accuracy
+All features,0.523
+Sentiment-only (proxy),0.407
+Technical-only (proxy),0.5

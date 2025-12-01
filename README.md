@@ -15,6 +15,8 @@
   <img src="https://img.shields.io/badge/NLP-FinBERT%20%7C%20VADER%20%7C%20TextBlob-orange?style=flat-square" />
   <img src="https://img.shields.io/badge/Explainability-SHAP-lightgrey?style=flat-square" />
   <img src="https://img.shields.io/badge/Tests-Passed-green?style=flat-square" />
+  <img src="https://github.com/Rajveer-code/financial-sentiment-nlp/actions/workflows/ci.yml/badge.svg" />
+
 </p>
 
 A research-grade framework for predicting daily stock price movements using multi-model NLP sentiment analysis, technical indicators, and machine learning with **leak-free temporal validation**.
