@@ -23,7 +23,7 @@ A research-grade framework for predicting daily stock price movements using mult
 
 **Author**: Rajveer Singh Pall  
 **Status**: ✅ Production-Ready | Research-Validated  
-**GitHub**: [yourusername/financial-sentiment-nlp](https://github.com/yourusername/financial-sentiment-nlp)
+**GitHub**: [Rajveer-code/financial-sentiment-nlp](https://github.com/yourusername/financial-sentiment-nlp)
 
 ---
 
