@@ -1,0 +1,2 @@
+experiment,accuracy,ci_low,ci_high,delta_vs_full,protocol
+Full model,0.55,-,-,0.0,walk-forward

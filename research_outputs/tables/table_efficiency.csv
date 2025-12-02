@@ -1,0 +1,4 @@
+component,time,cpu,params
+CatBoost training,3.634,CPU-only,"iterations=500, depth=6"
+CatBoost inference,~ ms/sample,CPU-only,batch_size=1
+FinBERT training,N/A,N/A,N/A

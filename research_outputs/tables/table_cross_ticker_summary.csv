@@ -1,0 +1,5 @@
+metric,value,ci_low,ci_high,note
+Within-ticker mean,0.418,0.378,0.459,Last fold window (NaN values excluded from mean/CI)
+Cross-ticker mean,0.427,0.391,0.471,Applied each model to other tickers (NaN values excluded from mean/CI)
+Generalization gap,-0.009,-,-,Difference (NaN if either mean is NaN)
+Random baseline,0.5,-,-,50% (theoretical minimum)

@@ -1,12 +1,11 @@
 feature_category,num_features,computation_notes,example_features
-Sentiment (aggregate),8,"Daily aggregation across all headlines (mean/std/quantiles)","ensemble_sentiment_mean; ensemble_sentiment_std; finbert_compound_mean; vader_compound_mean"
-Sentiment (entity-level),4,"NER + rule-based attribution to entities (CEO/competitor)","CEO_sentiment; competitor_sentiment; entity_count; entity_sentiment_variance"
-Consensus metrics,3,"Inter-model disagreement and calibration metrics","consensus_score; disagreement_entropy; model_variance"
-Technical indicators (trend),6,"Rolling windows (5–20 days) — differences, ratios","ma_5; ma_20; ema_12; ema_26; macd; macd_signal"
-Technical indicators (momentum),4,"14-day momentum windows","rsi_14; stochastic_k_14; stochastic_d_14; momentum_10d"
-Technical indicators (volatility),5,"Historical volatility (14–20 days) and oscillator-based measures","bb_width; atr_14; volatility_20d; parkinson_vol; garman_klass_vol"
-Technical indicators (volume),3,"Volume-derived signals and ratios","vwap; obv; volume_sma_ratio"
-Market context,5,"Day-level metadata and event flags","volume; day_of_week; month; earnings_flag; event_count"
-Lagged features,5,"Strict t-1 lagged values (no lookahead)","sentiment_lag1; return_lag1; volume_lag1; volatility_lag1; rsi_lag1"
-
-# Total features: 43 — detailed feature list is available in `src/feature_engineering` modules. All technical indicators use strictly historical windows (no lookahead). Entity attribution uses spaCy NER + proximity heuristics.
+Sentiment (aggregate),8.0,"Daily aggregation across headlines (mean, std, quantiles)","ensemble_sentiment_mean, ensemble_sentiment_std, finbert_compound_mean, vader_compound_mean"
+Sentiment (entity-level),4.0,spaCy NER + proximity-based sentiment attribution,"CEO_sentiment, competitor_sentiment, entity_count, entity_sentiment_variance"
+Consensus metrics,3.0,Inter-model disagreement quantification,"consensus_score, disagreement_entropy, model_prediction_variance"
+Technical (trend),6.0,"Rolling windows (5–20 day), no lookahead","ma_5, ma_20, ema_12, ema_26, macd, macd_signal"
+Technical (momentum),4.0,14-day RSI and stochastic oscillators,"rsi_14, stochastic_k_14, stochastic_d_14, momentum_10d"
+Technical (volatility),5.0,Historical volatility (14–20 day windows),"bb_width, atr_14, volatility_20d, parkinson_vol, garman_klass_vol"
+Technical (volume),3.0,Volume-based signals and ratios,"vwap, obv, volume_sma_ratio"
+Market context,5.0,Metadata and event flags,"volume, day_of_week, month, earnings_flag, event_count"
+Lagged features,5.0,"Strict t-1 lagged (causal, leak-free)","sentiment_lag1, return_lag1, volume_lag1, volatility_lag1, rsi_lag1"
+# Total features: 43 — detailed feature list is available in `src/feature_engineering` modules. All technical indicators use strictly historical windows (no lookahead). Entity attribution uses spaCy NER + proximity heuristics.,,,nan

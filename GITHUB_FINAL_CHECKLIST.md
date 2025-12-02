@@ -9,6 +9,7 @@
 ## 📋 Pre-Push Verification
 
 ### Research Manuscript ✅
+
 - [x] `paper_research.md` - Publication-ready (NOT paper_research_chatgpt.md)
 - [x] All LaTeX equations cleaned and rendering properly
 - [x] Hyphenation standardized throughout
@@ -18,6 +19,7 @@
 - [x] Sections 1-9 complete with Conclusion & Future Work
 
 ### Python Code ✅
+
 - [x] `src/` folder with core modules
 - [x] `scripts/generate_figures.py` for reproducible figures
 - [x] `app/app_main.py` Streamlit interface
@@ -25,6 +27,7 @@
 - [x] No API keys in config/ (only example files)
 
 ### Jupyter Notebooks ✅
+
 - [x] `notebooks/03_phase3_advanced_features.ipynb`
 - [x] `notebooks/04_phase4_model_training.ipynb`
 - [x] `notebooks/05_phase5_shap_explainability.ipynb`
@@ -32,12 +35,14 @@
 - [x] All notebooks executable with reproducible results
 
 ### Tests ✅
+
 - [x] `tests/test_final_validation.py`
 - [x] `tests/test_quick_validation.py`
 - [x] `tests/test_prediction_engine_fix.py`
 - [x] All tests passing
 
 ### Data & Results ✅
+
 - [x] `data/raw/` - Original data
 - [x] `data/processed/` - Processed datasets
 - [x] `data/final/` - Final model inputs
@@ -46,6 +51,7 @@
 - [x] `research_outputs/stats/` - Statistical outputs
 
 ### Documentation ✅
+
 - [x] `README.md` - Professional overview with badges
 - [x] `LICENSE` - MIT license
 - [x] `requirements.txt` - All dependencies listed
@@ -55,6 +61,7 @@
 - [x] `.gitignore` - Excludes temp files ✅ UPDATED
 
 ### Configuration ✅
+
 - [x] `config/api_keys.example.json` - Template (NO actual keys)
 - [x] `config/tickers.json` - Ticker configuration
 
@@ -63,6 +70,7 @@
 ## 🚫 Files EXCLUDED from Push
 
 ### Temporary Documentation (NOT included)
+
 ```
 ❌ ALL_FIXES_COMPLETE_READY_TO_TEST.md
 ❌ CHANGE_LOG.md
@@ -98,6 +106,7 @@
 ```
 
 ### Temporary Folders (NOT included)
+
 ```
 ❌ models\ copy/
 ❌ notebooks\ copy/
@@ -106,6 +115,7 @@
 ```
 
 ### Build Artifacts (NOT included)
+
 ```
 ❌ __pycache__/
 ❌ .pytest_cache/
@@ -131,6 +141,7 @@ git diff --cached | grep -i "password\|secret\|api_key\|token"
 ## 📤 Push Commands
 
 ### Option 1: Simple Push (Recommended)
+
 ```bash
 cd c:\Users\Asus\Downloads\financial-sentiment-nlp
 
@@ -157,6 +168,7 @@ git push origin main
 ```
 
 ### Option 2: With Force (if needed)
+
 ```bash
 # Only use if you need to overwrite remote history
 git push origin main --force-with-lease
@@ -169,23 +181,27 @@ git push origin main --force-with-lease
 After push, your repository will display:
 
 ✅ **Professional Structure**
+
 - Clean folders with only production code
 - No clutter or temporary files
 - Well-organized notebooks and scripts
 
 ✅ **Research Quality**
+
 - `paper_research.md` - Publication-ready manuscript
 - Proper LaTeX formatting for equations
 - Complete references section
 - Detailed methodology and results
 
 ✅ **Reproducibility**
+
 - All source code (`src/`)
 - Jupyter notebooks for exploration
 - Test files for validation
 - Data paths documented
 
 ✅ **No Noise**
+
 - Temporary markdown files excluded
 - API keys never exposed
 - Cache files ignored
@@ -201,14 +217,15 @@ Admissions reviewers will see:
    - Publication-grade manuscript
    - Comprehensive methodology section
    - Honest limitations discussion
-   
 2. **Technical Excellence**
+
    - Leak-free temporal validation (addresses known ML pitfall)
    - Entity-level NLP features (novel contribution)
    - SHAP explainability (interpretable ML)
    - Proper statistical testing (rigorous evaluation)
 
 3. **Professional Presentation**
+
    - Clean repository structure
    - Clear README with results
    - Documented architecture
@@ -225,16 +242,19 @@ Admissions reviewers will see:
 ## ⏱️ Estimated Timeline
 
 1. **Review status**: < 1 minute
+
    ```bash
    git status
    ```
 
 2. **Stage files**: < 1 minute
+
    ```bash
    git add -A
    ```
 
 3. **Commit**: < 1 minute
+
    ```bash
    git commit -m "..."
    ```

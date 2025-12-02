@@ -46,7 +46,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib import patches
-from sklearn.metrics import roc_curve, auc, confusion_matrix
+from sklearn.metrics import roc_curve, auc, confusion_matrix, precision_recall_fscore_support, accuracy_score, roc_auc_score
 
 sns.set(style="whitegrid")
 
@@ -465,6 +465,174 @@ def render_table_image(df: pd.DataFrame, save_path: Path, title: str = None):
 
 
 # ---------------------------------------------------------------------
+#  TABLE GENERATORS
+# ---------------------------------------------------------------------
+def generate_table1_dataset(df_pred_path: Path, out_path: Path):
+    df = pd.read_csv(df_pred_path)
+    df["date"] = pd.to_datetime(df["date"])
+    rows = []
+    per_ticker_avgs = []
+    per_ticker_covgs = []
+    for t in sorted(df["ticker"].unique()):
+        dft = df[df["ticker"] == t].sort_values("date")
+        start = dft["date"].min()
+        end = dft["date"].max()
+        trading_days = dft["date"].nunique()
+        total_headlines = float(dft["num_headlines"].fillna(0).sum())
+        avg_hpd = total_headlines / trading_days if trading_days else 0.0
+        coverage = (dft["num_headlines"].fillna(0) >= 1).mean() * 100.0
+        n = len(dft)
+        n_train = int(round(n * 0.70))
+        n_val = int(round(n * 0.15))
+        n_test = n - n_train - n_val
+        train_idx = dft.index[:n_train]
+        val_idx = dft.index[n_train : n_train + n_val]
+        test_idx = dft.index[n_train + n_val :]
+        cb_train = dft.loc[train_idx, "movement"].mean() * 100.0 if len(train_idx) else 0.0
+        cb_test = dft.loc[test_idx, "movement"].mean() * 100.0 if len(test_idx) else 0.0
+        pos_sent = (dft["ensemble_sentiment_mean"].fillna(0) > 0).mean() * 100.0
+        per_ticker_avgs.append(avg_hpd)
+        per_ticker_covgs.append(coverage)
+        rows.append({
+            "ticker": t,
+            "date_range": f"{start.date()} to {end.date()}",
+            "trading_days": int(trading_days),
+            "total_headlines": int(total_headlines),
+            "avg_headlines_per_day": round(avg_hpd, 2),
+            "headline_coverage_pct": round(coverage, 1),
+            "train_samples": int(n_train),
+            "val_samples": int(n_val),
+            "test_samples": int(n_test),
+            "class_balance_train_pct": round(cb_train, 1),
+            "class_balance_test_pct": round(cb_test, 1),
+            "positive_sentiment_pct": round(pos_sent, 1),
+        })
+    total = df.copy()
+    start_all = total["date"].min()
+    end_all = total["date"].max()
+    trading_days_all = total["date"].nunique()
+    total_headlines_all = float(total["num_headlines"].fillna(0).sum())
+    avg_hpd_all = float(np.mean(per_ticker_avgs)) if per_ticker_avgs else 0.0
+    coverage_all = float(np.mean(per_ticker_covgs)) if per_ticker_covgs else 0.0
+    n_all = len(total)
+    n_train_all = int(round(n_all * 0.70))
+    n_val_all = int(round(n_all * 0.15))
+    n_test_all = n_all - n_train_all - n_val_all
+    cb_train_all = total.iloc[:n_train_all]["movement"].mean() * 100.0 if n_train_all else 0.0
+    cb_test_all = total.iloc[n_train_all + n_val_all:]["movement"].mean() * 100.0 if n_test_all else 0.0
+    pos_sent_all = (total["ensemble_sentiment_mean"].fillna(0) > 0).mean() * 100.0
+    rows.append({
+        "ticker": "Total",
+        "date_range": f"{start_all.date()} to {end_all.date()}",
+        "trading_days": int(trading_days_all),
+        "total_headlines": int(total_headlines_all),
+        "avg_headlines_per_day": round(avg_hpd_all, 2),
+        "headline_coverage_pct": round(coverage_all, 1),
+        "train_samples": int(n_train_all),
+        "val_samples": int(n_val_all),
+        "test_samples": int(n_test_all),
+        "class_balance_train_pct": round(cb_train_all, 1),
+        "class_balance_test_pct": round(cb_test_all, 1),
+        "positive_sentiment_pct": round(pos_sent_all, 1),
+    })
+    out_df = pd.DataFrame(rows, columns=[
+        "ticker",
+        "date_range",
+        "trading_days",
+        "total_headlines",
+        "avg_headlines_per_day",
+        "headline_coverage_pct",
+        "train_samples",
+        "val_samples",
+        "test_samples",
+        "class_balance_train_pct",
+        "class_balance_test_pct",
+        "positive_sentiment_pct",
+    ])
+    out_df.to_csv(out_path, index=False)
+
+
+def fix_table2_features(path: Path):
+    if not path.exists():
+        return
+    df = pd.read_csv(path)
+    if "example_features" in df.columns:
+        df["example_features"] = df["example_features"].astype(str).str.replace(";", ",")
+        df.to_csv(path, index=False)
+
+
+def recompute_table3_enhanced(df_pred_path: Path, out_path: Path):
+    df = pd.read_csv(df_pred_path)
+    df["date"] = pd.to_datetime(df["date"])
+    folds = [
+        ("fold_01", "2025-09-01", "2025-09-14"),
+        ("fold_02", "2025-09-15", "2025-09-30"),
+        ("fold_03", "2025-10-01", "2025-10-15"),
+        ("fold_04", "2025-10-16", "2025-10-31"),
+        ("fold_05", "2025-11-01", "2025-11-20"),
+    ]
+    rows = []
+    for fid, start_s, end_s in folds:
+        start = pd.to_datetime(start_s)
+        end = pd.to_datetime(end_s)
+        dft = df[(df["date"] >= start) & (df["date"] <= end)].copy()
+        y_true = dft["movement"].astype(int).values if not dft.empty else np.array([])
+        y_pred = dft["prediction"].astype(int).values if not dft.empty else np.array([])
+        y_prob = dft["probability"].astype(float).values if not dft.empty else np.array([])
+        n = int(len(dft))
+        acc = float(accuracy_score(y_true, y_pred)) if n else 0.0
+        pr, rc, f1, _ = precision_recall_fscore_support(y_true, y_pred, average="binary", zero_division=0) if n else (0.0, 0.0, 0.0, None)
+        try:
+            auc_score = float(roc_auc_score(y_true, y_prob)) if n and len(np.unique(y_true)) == 2 else 0.5
+        except Exception:
+            auc_score = 0.5
+        if n:
+            p = acc
+            se = (p * (1 - p) / n) ** 0.5
+            ci_low = max(0.0, p - 1.96 * se)
+            ci_high = min(1.0, p + 1.96 * se)
+            if p <= 0.5:
+                p_value = 1.0
+            else:
+                z = (p - 0.5) / (0.5 / (n ** 0.5))
+                from math import erf
+                p_value = 1 - (0.5 * (1 + erf(abs(z) / 2 ** 0.5)))
+        else:
+            ci_low = 0.0
+            ci_high = 0.0
+            p_value = 1.0
+        rows.append({
+            "fold_id": fid,
+            "train_period": "-",
+            "test_period": f"{start.date()} to {end.date()}",
+            "test_n": n,
+            "accuracy": round(acc, 3),
+            "precision": round(pr, 3),
+            "recall": round(rc, 3),
+            "f1": round(f1, 3),
+            "auc": round(auc_score, 3),
+            "p_value": round(p_value, 3),
+            "ci_low": round(ci_low, 3),
+            "ci_high": round(ci_high, 3),
+        })
+    out_df = pd.DataFrame(rows, columns=[
+        "fold_id",
+        "train_period",
+        "test_period",
+        "test_n",
+        "accuracy",
+        "precision",
+        "recall",
+        "f1",
+        "auc",
+        "p_value",
+        "ci_low",
+        "ci_high",
+    ])
+    out_df.to_csv(out_path, index=False)
+
+
+# ---------------------------------------------------------------------
 #  MOCK DATA FOR QUICK PREVIEW
 # ---------------------------------------------------------------------
 def make_mock_data(base_dir: Path):
@@ -767,6 +935,11 @@ def main():
         action="store_true",
         help="Generate mock data and plots",
     )
+    p.add_argument(
+        "--generate-tables",
+        action="store_true",
+        help="Generate corrected tables from df_pred.csv and existing templates",
+    )
     args = p.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -775,6 +948,16 @@ def main():
     data_dir = Path(args.data_dir) if args.data_dir else out_dir / "mock_data"
     if args.mock:
         make_mock_data(data_dir)
+
+    if args.generate_tables:
+        try:
+            df_pred_path = data_dir / "df_pred.csv"
+            if df_pred_path.exists():
+                generate_table1_dataset(df_pred_path, data_dir / "table_dataset.csv")
+                recompute_table3_enhanced(df_pred_path, data_dir / "table3_per_fold_enhanced.csv")
+            fix_table2_features(data_dir / "table2_features.csv")
+        except Exception as e:
+            print(f"Failed to generate tables: {e}")
 
     # Core figures
     figure1_walk_forward(out_dir / "figure1_walk_forward.png")
